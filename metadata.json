@@ -1,0 +1,6 @@
+{
+  "name": "سیستم هوشمند مدیریت و فروش اشتراک هوش مصنوعی",
+  "description": "سامانه یکپارچه فروش اشتراک ChatGPT و Gemini با ربات همزمان تلگرام و بله، پنل مدیریت جنگو، درگاه پیپینگ و کرون‌جاب هوشمند",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
