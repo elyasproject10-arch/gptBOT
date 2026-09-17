@@ -19,7 +19,7 @@ SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 ORDERS_FILE = os.path.join(BASE_DIR, "orders.json")
 
 app = Flask(__name__)
-app.secret_key = "secure_secret_key_gptbot_admin_panel_v2"
+app.secret_key = "secure_secret_key_gptbot_admin_panel_v3"
 
 # ----------------- دیتابیس جیسون -----------------
 def load_json(fn, default):
@@ -180,7 +180,6 @@ def ask_payment_ref(call):
     name = call.from_user.first_name or "کاربر"
     username = f"@{call.from_user.username}" if call.from_user.username else "بدون نام‌کاربری"
     
-    # ثبت در سفارشات
     orders = get_orders()
     order_item = {
         "id": f"ORD-{int(time.time())}",
@@ -243,7 +242,6 @@ def admin_approval(call):
         }
         save_json(DATA_FILE, subs)
         
-        # آپدیت وضعیت سفارش
         orders = get_orders()
         for ord in orders:
             if ord.get("user_id") == str(target_id) and ord.get("status") == "pending":
@@ -286,35 +284,117 @@ def forward_receipt(message):
     bot.reply_to(message, "✅ پیام یا فیش شما دریافت شد و جهت بررسی برای مدیریت ارسال گردید.")
     bot.forward_message(ADMIN_CHAT_ID, message.chat.id, message.message_id)
 
-# ----------------- قالب HTML پنل مدیریت پیشرفته -----------------
+# ----------------- قالب HTML پنل با فونت زیبا و دیزاین مدرن -----------------
 HTML_LOGIN = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>ورود به پنل مدیریت</title>
+    <meta charset="UTF-8">
+    <title>ورود به پنل مدیریت</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: system-ui, Tahoma, sans-serif; background: #090d16; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: #131b2e; padding: 35px; border-radius: 16px; width: 340px; border: 1px solid #22304d; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        h2 { text-align: center; color: #38bdf8; margin-top: 0; font-size: 20px; }
-        label { font-size: 13px; color: #94a3b8; display: block; margin-top: 15px; }
-        input { width: 100%; padding: 12px; margin-top: 6px; background: #090d16; border: 1px solid #2b3b5c; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
-        input:focus { border-color: #38bdf8; outline: none; }
-        button { width: 100%; padding: 12px; background: #0284c7; border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; margin-top: 25px; transition: 0.2s; }
-        button:hover { background: #0369a1; }
-        .err { color: #f87171; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-size: 13px; }
+        * { box-sizing: border-box; font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body {
+            background: radial-gradient(circle at 50% 20%, #172033 0%, #080c14 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .login-card {
+            background: rgba(18, 26, 44, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 20px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+        }
+        .logo-badge {
+            width: 54px;
+            height: 54px;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin: 0 auto 16px auto;
+            box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35);
+        }
+        h2 { text-align: center; margin: 0 0 6px 0; font-size: 20px; font-weight: 700; color: #f8fafc; }
+        p.subtitle { text-align: center; font-size: 13px; color: #94a3b8; margin: 0 0 24px 0; }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; font-size: 13px; font-weight: 500; color: #cbd5e1; margin-bottom: 6px; }
+        input {
+            width: 100%;
+            padding: 13px 16px;
+            background: #0b1120;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            color: #f8fafc;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        input:focus {
+            border-color: #38bdf8;
+            background: #0d1527;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border: none;
+            color: white;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+            box-shadow: 0 6px 15px rgba(2, 132, 199, 0.3);
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(2, 132, 199, 0.4);
+        }
+        .err {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 18px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h2>🔐 ورود به پنل مدیریت اشتراک</h2>
+    <div class="login-card">
+        <div class="logo-badge">⚡</div>
+        <h2>ورود به پنل مدیریت</h2>
+        <p class="subtitle">سیستم مدیریت اشتراک و ربات تلگرام</p>
         {% if error %}<div class="err">{{ error }}</div>{% endif %}
         <form method="POST">
-            <label>نام کاربری:</label>
-            <input type="text" name="username" required autocomplete="off">
-            <label>رمز عبور:</label>
-            <input type="password" name="password" required>
-            <button type="submit">ورود به پنل مدیریت</button>
+            <div class="form-group">
+                <label>نام کاربری:</label>
+                <input type="text" name="username" required autocomplete="off" placeholder="نام کاربری ادمین">
+            </div>
+            <div class="form-group">
+                <label>رمز عبور:</label>
+                <input type="password" name="password" required placeholder="••••••••">
+            </div>
+            <button type="submit">ورود به پنل داشبورد</button>
         </form>
     </div>
 </body>
@@ -325,191 +405,413 @@ HTML_ADMIN = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>داشبورد مدیریت حرفه‌ای ربات اشتراک</title>
+    <meta charset="UTF-8">
+    <title>داشبورد مدیریت اشتراک‌ها</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, Tahoma, sans-serif; background: #090d16; color: #f1f5f9; margin: 0; padding: 20px; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; background: #131b2e; padding: 18px 25px; border-radius: 14px; border: 1px solid #22304d; margin-bottom: 25px; }
-        .header h1 { margin: 0; font-size: 20px; color: #38bdf8; display: flex; align-items: center; gap: 10px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .stat-card { background: #131b2e; border: 1px solid #22304d; padding: 20px; border-radius: 12px; }
-        .stat-val { font-size: 24px; font-weight: bold; color: #38bdf8; margin-top: 5px; }
-        .stat-lbl { font-size: 13px; color: #94a3b8; }
+        * { box-sizing: border-box; font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, sans-serif; }
+        body {
+            background-color: #070b13;
+            color: #f1f5f9;
+            margin: 0;
+            padding: 24px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1280px; margin: 0 auto; }
         
-        .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #22304d; padding-bottom: 10px; overflow-x: auto; }
-        .tab-btn { background: transparent; border: none; color: #94a3b8; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; transition: 0.2s; white-space: nowrap; }
-        .tab-btn.active { background: #0284c7; color: white; }
+        /* Navbar */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            padding: 16px 24px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .brand-title { margin: 0; font-size: 18px; font-weight: 700; color: #f8fafc; }
+        .brand-sub { margin: 0; font-size: 12px; color: #94a3b8; }
         
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .user-badge {
+            background: #1e293b;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #38bdf8;
+            border: 1px solid #334155;
+        }
         
-        .card { background: #131b2e; border: 1px solid #22304d; border-radius: 14px; padding: 25px; margin-bottom: 25px; }
-        .card h2 { margin-top: 0; font-size: 17px; color: #38bdf8; border-bottom: 1px solid #22304d; padding-bottom: 12px; }
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); border-color: #38bdf8; }
+        .stat-icon {
+            position: absolute;
+            left: 18px;
+            top: 20px;
+            font-size: 28px;
+            opacity: 0.7;
+        }
+        .stat-title { font-size: 13px; color: #94a3b8; font-weight: 500; }
+        .stat-number { font-size: 26px; font-weight: 800; color: #f8fafc; margin-top: 6px; }
+        .stat-desc { font-size: 11px; color: #38bdf8; margin-top: 4px; }
         
-        .form-row { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; }
-        .form-group { flex: 1; min-width: 220px; }
-        label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
-        input, textarea, select { width: 100%; padding: 10px 12px; background: #090d16; border: 1px solid #2b3b5c; border-radius: 8px; color: #fff; font-size: 14px; font-family: inherit; }
-        textarea { resize: vertical; min-height: 80px; }
-        input:focus, textarea:focus { border-color: #38bdf8; outline: none; }
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            background: #0f172a;
+            padding: 6px;
+            border-radius: 14px;
+            border: 1px solid #1e293b;
+            margin-bottom: 24px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab-btn:hover { color: #f8fafc; background: rgba(255,255,255,0.03); }
+        .tab-btn.active {
+            background: #0284c7;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+        }
         
-        .btn { padding: 9px 18px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: white; transition: 0.2s; }
-        .btn-primary { background: #0284c7; }
+        .tab-view { display: none; }
+        .tab-view.active { display: block; }
+        
+        /* Card & Content */
+        .card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 18px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+        .card-title { margin: 0; font-size: 16px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
+        
+        /* Forms */
+        .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 13px; font-weight: 500; color: #cbd5e1; margin-bottom: 6px; }
+        input, select, textarea {
+            width: 100%;
+            padding: 11px 14px;
+            background: #090d16;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            color: #f8fafc;
+            font-size: 13.5px;
+            transition: all 0.2s;
+        }
+        textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+        input:focus, select:focus, textarea:focus {
+            border-color: #0284c7;
+            background: #0b1120;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #0284c7; color: white; }
         .btn-primary:hover { background: #0369a1; }
-        .btn-success { background: #10b981; }
-        .btn-danger { background: #ef4444; }
-        .btn-secondary { background: #475569; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: #ef4444; color: white; }
+        .btn-secondary { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+        .btn-secondary:hover { background: #334155; color: white; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #22304d; font-size: 13.5px; }
-        th { background: #0d1424; color: #38bdf8; font-weight: 600; }
-        tr:hover { background: rgba(56, 189, 248, 0.03); }
-        .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; }
-        .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-        .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-        .badge-danger { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-        .alert-box { background: rgba(56, 189, 248, 0.1); border: 1px solid #0284c7; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13.5px; color: #bae6fd; }
+        /* Tables */
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+        th {
+            background: #1e293b;
+            color: #cbd5e1;
+            padding: 12px 16px;
+            text-align: right;
+            font-weight: 600;
+            border-top: 1px solid #334155;
+            border-bottom: 1px solid #334155;
+        }
+        th:first-child { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+        th:last-child { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #1e293b;
+            color: #e2e8f0;
+            vertical-align: middle;
+        }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        
+        /* Badges */
+        .badge {
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        
+        .alert-box {
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            color: #38bdf8;
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            font-weight: 500;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .code-box {
+            background: #090d16;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid #1e293b;
+            font-family: monospace;
+            color: #38bdf8;
+            font-size: 12.5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🚀 پنل مدیریت پیشرفته ربات فروش اشتراک</h1>
-            <div>
-                <span style="color: #94a3b8; font-size: 13px; margin-left: 15px;">مدیر: <b style="color:white;">{{ settings.admin_user }}</b></span>
+        <!-- هدر بالای صفحه -->
+        <div class="topbar">
+            <div class="brand">
+                <div class="brand-icon">💎</div>
+                <div>
+                    <h1 class="brand-title">پنل مدیریت اشتراک و ربات تلگرام</h1>
+                    <p class="brand-sub">مدیریت آنی پلن‌ها، متن تعرفه‌ها، اشتراک‌ها و تراکنش‌ها</p>
+                </div>
+            </div>
+            <div class="user-info">
+                <div class="user-badge">👤 مدیر سیستم: <b>{{ settings.admin_user }}</b></div>
                 <a href="/logout" class="btn btn-secondary">خروج</a>
             </div>
         </div>
 
         {% if msg %}
-        <div class="alert-box">✅ {{ msg }}</div>
+        <div class="alert-box">✨ {{ msg }}</div>
         {% endif %}
 
+        <!-- کارت‌های آمار و اطلاعات -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-lbl">👥 کل اشتراک‌های فعال</div>
-                <div class="stat-val">{{ stats.active_subs }} کاربر</div>
+                <div class="stat-icon">👥</div>
+                <div class="stat-title">مشترکین فعال</div>
+                <div class="stat-number">{{ stats.active_subs }}</div>
+                <div class="stat-desc">دارای لایسنس معتبر</div>
             </div>
             <div class="stat-card">
-                <div class="stat-lbl">📦 تعداد پلن‌های فعال</div>
-                <div class="stat-val">{{ stats.total_plans }} پلن</div>
+                <div class="stat-icon">📦</div>
+                <div class="stat-title">پلن‌های فعال در ربات</div>
+                <div class="stat-number">{{ stats.total_plans }}</div>
+                <div class="stat-desc">آماده سفارش کاربران</div>
             </div>
             <div class="stat-card">
-                <div class="stat-lbl">🛒 کل سفارشات ثبت‌شده</div>
-                <div class="stat-val">{{ stats.total_orders }} سفارش</div>
+                <div class="stat-icon">🛍️</div>
+                <div class="stat-title">کل سفارشات ثبت‌شده</div>
+                <div class="stat-number">{{ stats.total_orders }}</div>
+                <div class="stat-desc">تراکنش‌های ورودی</div>
             </div>
             <div class="stat-card">
-                <div class="stat-lbl">💰 درآمد تخمینی تایید شده</div>
-                <div class="stat-val">{{ "{:,}".format(stats.total_revenue) }} تومان</div>
+                <div class="stat-icon">💰</div>
+                <div class="stat-title">مجموع فروش تایید شده</div>
+                <div class="stat-number">{{ "{:,}".format(stats.total_revenue) }}</div>
+                <div class="stat-desc">تومان</div>
             </div>
         </div>
 
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('plans')">💎 پلن‌ها و محصولات</button>
-            <button class="tab-btn" onclick="switchTab('texts')">✏️ ویرایش متن تعرفه‌ها و پیام‌های ربات</button>
-            <button class="tab-btn" onclick="switchTab('orders')">🛍️ سفارشات و تراکنش‌ها</button>
-            <button class="tab-btn" onclick="switchTab('subs')">👤 مدیریت کاربران و اشتراک‌ها</button>
-            <button class="tab-btn" onclick="switchTab('settings')">⚙️ تنظیمات و تغییر رمز</button>
+        <!-- تب‌های پیمایش -->
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="showTab('plans')">📦 مدیریت پلن‌ها</button>
+            <button class="tab-btn" onclick="showTab('texts')">✏️ ویرایش متن تعرفه‌ها و پیام‌های ربات</button>
+            <button class="tab-btn" onclick="showTab('orders')">🛍️ لیست سفارشات</button>
+            <button class="tab-btn" onclick="showTab('subs')">👥 مدیریت مشترکین و لایسنس</button>
+            <button class="tab-btn" onclick="showTab('settings')">⚙️ تغییر نام کاربری و رمز</button>
         </div>
 
         <!-- تب ۱: پلن‌ها -->
-        <div id="tab-plans" class="tab-content active">
+        <div id="tab-plans" class="tab-view active">
             <div class="card">
-                <h2>➕ افزودن یا ویرایش پلن جدید</h2>
+                <div class="card-header">
+                    <h2 class="card-title">➕ ایجاد پلن یا محصول جدید</h2>
+                </div>
                 <form method="POST" action="/admin/add_plan">
-                    <div class="form-row">
+                    <div class="grid-form">
                         <div class="form-group">
-                            <label>نام محصول / پلن:</label>
-                            <input type="text" name="name" placeholder="مثال: پلن الماس یک‌ماهه" required>
+                            <label>نام پلن / محصول:</label>
+                            <input type="text" name="name" placeholder="مثال: پلن طلایی VIP (۳ ماهه)" required>
                         </div>
                         <div class="form-group">
-                            <label>قیمت به تومان:</label>
+                            <label>قیمت محصول (تومان):</label>
                             <input type="number" name="price" placeholder="مثال: 150000" required>
                         </div>
                         <div class="form-group">
-                            <label>مدت اعتبار (روز):</label>
-                            <input type="number" name="days" placeholder="مثال: 30" required>
+                            <label>مدت زمان اعتبار (روز):</label>
+                            <input type="number" name="days" placeholder="مثال: 90" required>
                         </div>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group" style="flex:2;">
-                            <label>لینک پرداخت اختصاصی این محصول (درگاه پی‌پینگ):</label>
+                    <div class="grid-form">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>لینک درگاه پرداخت پی‌پینگ اختصاصی این پلن:</label>
                             <input type="text" name="pay_url" placeholder="https://payping.ir/d/XXXXXX" required>
                         </div>
-                        <div class="form-group" style="flex:2;">
-                            <label>توضیحات کوتاه پلن (اختیاری):</label>
-                            <input type="text" name="desc" placeholder="مثال: سرعت بالا، دو کاربره، بدون قطعی">
+                        <div class="form-group">
+                            <label>توضیحات کوتاه (اختیاری):</label>
+                            <input type="text" name="desc" placeholder="مثال: بدون محدودیت، تحویل آنی">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success">➕ ذخیره و انتشار آنی در ربات</button>
+                    <button type="submit" class="btn btn-success">➕ ذخیره و نمایش در ربات تلگرام</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>📦 لیست پلن‌های تعریف‌شده توسط ادمین</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>شناسه</th>
-                            <th>نام پلن</th>
-                            <th>قیمت (تومان)</th>
-                            <th>مدت اعتبار</th>
-                            <th>توضیحات</th>
-                            <th>لینک پی‌پینگ</th>
-                            <th>عملیات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for key, p in plans.items() %}
-                        <tr>
-                            <td><code>{{ key }}</code></td>
-                            <td><b>{{ p.name }}</b></td>
-                            <td>{{ "{:,}".format(p.price|int) }} تومان</td>
-                            <td>{{ p.days }} روز</td>
-                            <td>{{ p.desc or '-' }}</td>
-                            <td><a href="{{ p.pay_url }}" target="_blank" style="color:#38bdf8;">مشاهده درگاه</a></td>
-                            <td>
-                                <a href="/admin/delete_plan/{{ key }}" class="btn btn-danger" onclick="return confirm('آیا از حذف این پلن مطمئن هستید؟')">حذف</a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="7" style="text-align:center; color:#94a3b8;">هنوز هیچ پلنی تعریف نشده است.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="card-header">
+                    <h2 class="card-title">📋 پلن‌های فعال موجود در ربات</h2>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>نام پلن</th>
+                                <th>قیمت</th>
+                                <th>مدت اعتبار</th>
+                                <th>توضیحات</th>
+                                <th>لینک درگاه پی‌پینگ</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, p in plans.items() %}
+                            <tr>
+                                <td><b style="color:#38bdf8;">{{ p.name }}</b></td>
+                                <td>{{ "{:,}".format(p.price|int) }} تومان</td>
+                                <td>{{ p.days }} روز</td>
+                                <td>{{ p.desc or '-' }}</td>
+                                <td><a href="{{ p.pay_url }}" target="_blank" style="color:#0ea5e9; font-weight: 500; text-decoration: none;">مشاهده صفحه پرداخت ↗</a></td>
+                                <td>
+                                    <a href="/admin/delete_plan/{{ key }}" class="btn btn-danger" style="padding: 6px 14px; font-size: 12px;" onclick="return confirm('آیا مطمئن هستید که این پلن حذف شود؟')">حذف پلن</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ پلنی هنوز ثبت نشده است. از فرم بالا اولین پلن خود را بسازید.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <!-- تب ۲: متن‌ها و تعرفه‌ها -->
-        <div id="tab-texts" class="tab-content">
+        <!-- تب ۲: شخصی‌سازی متن‌ها -->
+        <div id="tab-texts" class="tab-view">
             <div class="card">
-                <h2>✏️ شخصی‌سازی متن‌های ربات تلگرام</h2>
+                <div class="card-header">
+                    <h2 class="card-title">✏️ ویرایش آنلاین متن‌های ارسالی توسط ربات تلگرام</h2>
+                </div>
                 <form method="POST" action="/admin/update_texts">
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label>📋 متن بالای لیست تعرفه‌ها (در دکمه «تعرفه‌ها و پلن‌ها»):</label>
-                        <textarea name="plans_header_text" rows="3">{{ settings.plans_header_text }}</textarea>
-                        <small style="color:#94a3b8;">این متن دقیقاً قبل از نمایش لیست قیمت‌ها به کاربر نمایش داده می‌شود.</small>
+                    <div class="form-group">
+                        <label>📋 متن تیتر بالای لیست تعرفه‌ها (دکمه «تعرفه‌ها و پلن‌ها»):</label>
+                        <textarea name="plans_header_text">{{ settings.plans_header_text }}</textarea>
+                        <small style="color: #94a3b8; font-size: 12px; display: block; margin-top: 4px;">این متن در تلگرام دقیقاً بالای قیمت پلن‌ها برای مشتری نمایش داده می‌شود.</small>
                     </div>
 
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label>🌹 متن خوش‌آمدگویی استارت ربات (/start):</label>
-                        <textarea name="welcome_text" rows="4">{{ settings.welcome_text }}</textarea>
-                        <small style="color:#94a3b8;">می‌توانید از متغیر {name} برای قرارگیری نام کاربر استفاده کنید.</small>
+                    <div class="form-group">
+                        <label>🌹 متن پیام خوش‌آمدگویی استارت ربات (/start):</label>
+                        <textarea name="welcome_text" style="min-height: 110px;">{{ settings.welcome_text }}</textarea>
+                        <small style="color: #94a3b8; font-size: 12px; display: block; margin-top: 4px;">از {name} برای قرارگیری نام کاربر استفاده می‌شود.</small>
                     </div>
 
-                    <div class="form-group" style="margin-bottom: 20px;">
+                    <div class="form-group">
                         <label>📞 متن دکمه پشتیبانی:</label>
-                        <textarea name="support_text" rows="3">{{ settings.support_text }}</textarea>
-                        <small style="color:#94a3b8;">از متغیر {support_id} برای درج خودکار آیدی پشتیبانی استفاده می‌شود.</small>
+                        <textarea name="support_text">{{ settings.support_text }}</textarea>
+                        <small style="color: #94a3b8; font-size: 12px; display: block; margin-top: 4px;">از {support_id} برای جایگذاری آیدی پشتیبانی استفاده می‌شود.</small>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>آیدی تلگرام پشتیبانی:</label>
-                            <input type="text" name="support_id" value="{{ settings.support_id }}">
-                        </div>
+                    <div class="form-group" style="max-width: 320px;">
+                        <label>آیدی تلگرام پشتیبانی:</label>
+                        <input type="text" name="support_id" value="{{ settings.support_id }}">
                     </div>
 
                     <button type="submit" class="btn btn-primary">💾 ذخیره تغییرات متن‌ها</button>
@@ -518,57 +820,65 @@ HTML_ADMIN = """
         </div>
 
         <!-- تب ۳: سفارشات -->
-        <div id="tab-orders" class="tab-content">
+        <div id="tab-orders" class="tab-view">
             <div class="card">
-                <h2>🛍️ تاریخچه تراکنش‌ها و سفارشات کاربران</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>شماره سفارش</th>
-                            <th>مشتری</th>
-                            <th>آیدی عددی</th>
-                            <th>پلن انتخابی</th>
-                            <th>مبلغ</th>
-                            <th>تاریخ و زمان</th>
-                            <th>وضعیت</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ord in orders|reverse %}
-                        <tr>
-                            <td><code>{{ ord.id }}</code></td>
-                            <td>{{ ord.name }} ({{ ord.username }})</td>
-                            <td><code>{{ ord.user_id }}</code></td>
-                            <td>{{ ord.plan_name }}</td>
-                            <td>{{ "{:,}".format(ord.price|int) }} تومان</td>
-                            <td>{{ ord.date }}</td>
-                            <td>
-                                {% if ord.status == 'approved' %}
-                                <span class="badge badge-success">تایید و فعال شده</span>
-                                {% elif ord.status == 'rejected' %}
-                                <span class="badge badge-danger">رد شده</span>
-                                {% else %}
-                                <span class="badge badge-warning">در انتظار بررسی</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="7" style="text-align:center; color:#94a3b8;">هنوز سفارشی ثبت نشده است.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="card-header">
+                    <h2 class="card-title">🛍️ سوابق خرید و پرداخت‌های کاربران</h2>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>کد پیگیری</th>
+                                <th>نام مشتری</th>
+                                <th>آیدی عددی</th>
+                                <th>پلن درخواستی</th>
+                                <th>مبلغ</th>
+                                <th>تاریخ سفارش</th>
+                                <th>وضعیت سفارش</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ord in orders|reverse %}
+                            <tr>
+                                <td><span class="code-box">{{ ord.id }}</span></td>
+                                <td><b>{{ ord.name }}</b> <span style="color:#94a3b8;font-size:12px;">({{ ord.username }})</span></td>
+                                <td><span class="code-box">{{ ord.user_id }}</span></td>
+                                <td>{{ ord.plan_name }}</td>
+                                <td>{{ "{:,}".format(ord.price|int) }} تومان</td>
+                                <td>{{ ord.date }}</td>
+                                <td>
+                                    {% if ord.status == 'approved' %}
+                                    <span class="badge badge-success">✅ تایید و فعال</span>
+                                    {% elif ord.status == 'rejected' %}
+                                    <span class="badge badge-danger">❌ رد شده</span>
+                                    {% else %}
+                                    <span class="badge badge-warning">⏳ در انتظار فیش</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ سفارشی هنوز ثبت نشده است.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
         <!-- تب ۴: اشتراک‌ها -->
-        <div id="tab-subs" class="tab-content">
+        <div id="tab-subs" class="tab-view">
             <div class="card">
-                <h2>➕ فعال‌سازی دستی اشتراک برای کاربر</h2>
+                <div class="card-header">
+                    <h2 class="card-title">➕ فعال‌سازی دستی اشتراک بدون پرداخت</h2>
+                </div>
                 <form method="POST" action="/admin/manual_sub">
-                    <div class="form-row">
+                    <div class="grid-form">
                         <div class="form-group">
-                            <label>آیدی عددی تلگرام کاربر:</label>
-                            <input type="number" name="user_id" placeholder="مثال: 123456789" required>
+                            <label>آیدی عددی تلگرام مشتری:</label>
+                            <input type="number" name="user_id" placeholder="مثال: 5490508090" required>
                         </div>
                         <div class="form-group">
                             <label>انتخاب پلن:</label>
@@ -579,75 +889,81 @@ HTML_ADMIN = """
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>تعداد روز اعتبار:</label>
+                            <label>مدت اعتبار اشتراک (روز):</label>
                             <input type="number" name="days" value="30" required>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success">✅ فعال‌سازی اشتراک و ارسال پیام به کاربر</button>
+                    <button type="submit" class="btn btn-success">✅ فعال‌سازی اشتراک و ارسال پیام لایسنس به کاربر</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>👥 مشترکین فعال</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>آیدی تلگرام</th>
-                            <th>پلن فعال</th>
-                            <th>تاریخ شروع</th>
-                            <th>مدت</th>
-                            <th>کد لایسنس</th>
-                            <th>عملیات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for uid, s in subs.items() %}
-                        <tr>
-                            <td><code>{{ uid }}</code></td>
-                            <td><b>{{ s.plan }}</b></td>
-                            <td>{{ s.date }}</td>
-                            <td>{{ s.days or 30 }} روز</td>
-                            <td><code>{{ s.license_key }}</code></td>
-                            <td>
-                                <a href="/admin/revoke_sub/{{ uid }}" class="btn btn-danger" onclick="return confirm('آیا اشتراک این کاربر باطل شود؟')">ابطال اشتراک</a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="6" style="text-align:center; color:#94a3b8;">هیچ کاربری اشتراک فعال ندارد.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="card-header">
+                    <h2 class="card-title">👥 لیست مشترکین فعال</h2>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>آیدی تلگرام</th>
+                                <th>پلن فعال</th>
+                                <th>تاریخ شروع</th>
+                                <th>مدت اعتبار</th>
+                                <th>کد لایسنس</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for uid, s in subs.items() %}
+                            <tr>
+                                <td><span class="code-box">{{ uid }}</span></td>
+                                <td><b style="color:#38bdf8;">{{ s.plan }}</b></td>
+                                <td>{{ s.date }}</td>
+                                <td>{{ s.days or 30 }} روز</td>
+                                <td><span class="code-box">{{ s.license_key }}</span></td>
+                                <td>
+                                    <a href="/admin/revoke_sub/{{ uid }}" class="btn btn-danger" style="padding: 6px 14px; font-size: 12px;" onclick="return confirm('آیا اشتراک این کاربر باطل شود؟')">ابطال اشتراک</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ کاربری در حال حاضر اشتراک فعال ندارد.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
         <!-- تب ۵: تنظیمات -->
-        <div id="tab-settings" class="tab-content">
+        <div id="tab-settings" class="tab-view">
             <div class="card">
-                <h2>🔐 تغییر نام کاربری و رمز عبور پنل مدیریت</h2>
-                <form method="POST" action="/admin/update_credentials">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>نام کاربری جدید:</label>
-                            <input type="text" name="new_username" value="{{ settings.admin_user }}" required>
-                        </div>
-                        <div class="form-group">
-                            <label>رمز عبور جدید:</label>
-                            <input type="password" name="new_password" placeholder="رمز جدید را وارد کنید" required>
-                        </div>
+                <div class="card-header">
+                    <h2 class="card-title">🔐 تغییر اطلاعات ورود به پنل ادمین</h2>
+                </div>
+                <form method="POST" action="/admin/update_credentials" style="max-width: 480px;">
+                    <div class="form-group">
+                        <label>نام کاربری جدید پنل:</label>
+                        <input type="text" name="new_username" value="{{ settings.admin_user }}" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">تغییر اطلاعات ورود</button>
+                    <div class="form-group">
+                        <label>رمز عبور جدید:</label>
+                        <input type="password" name="new_password" placeholder="رمز عبور قوی وارد نمایید" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">تغییر نام کاربری و رمز</button>
                 </form>
             </div>
         </div>
     </div>
 
     <script>
-        function switchTab(name) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        function showTab(id) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-view').forEach(view => view.classList.remove('active'));
             
-            event.target.classList.add('active');
-            document.getElementById('tab-' + name).classList.add('active');
+            event.currentTarget.classList.add('active');
+            document.getElementById('tab-' + id).classList.add('active');
         }
     </script>
 </body>
@@ -708,7 +1024,7 @@ def add_plan():
         "desc": request.form.get('desc', '')
     }
     save_json(PLANS_FILE, plans)
-    return redirect('/admin?msg=پلن جدید با موفقیت اضافه شد.')
+    return redirect('/admin?msg=پلن جدید با موفقیت اضافه و در ربات منتشر گردید.')
 
 @app.route('/admin/delete_plan/<plan_id>')
 def delete_plan(plan_id):
@@ -718,7 +1034,7 @@ def delete_plan(plan_id):
     if plan_id in plans:
         del plans[plan_id]
         save_json(PLANS_FILE, plans)
-    return redirect('/admin?msg=پلن مورد نظر حذف گردید.')
+    return redirect('/admin?msg=پلن با موفقیت حذف گردید.')
 
 @app.route('/admin/update_texts', methods=['POST'])
 def update_texts():
@@ -730,7 +1046,7 @@ def update_texts():
     settings['support_text'] = request.form.get('support_text')
     settings['support_id'] = request.form.get('support_id')
     save_json(SETTINGS_FILE, settings)
-    return redirect('/admin?msg=متن‌های ربات با موفقیت ذخیره و به‌روزرسانی شدند.')
+    return redirect('/admin?msg=متن‌های تعرفه‌ها و پیام‌های ربات با موفقیت ذخیره شدند.')
 
 @app.route('/admin/manual_sub', methods=['POST'])
 def manual_sub():
@@ -763,7 +1079,7 @@ def manual_sub():
     except:
         pass
     
-    return redirect('/admin?msg=اشتراک دستی با موفقیت برای کاربر فعال گردید.')
+    return redirect('/admin?msg=اشتراک دستی با موفقیت فعال شد.')
 
 @app.route('/admin/revoke_sub/<uid>')
 def revoke_sub(uid):
@@ -796,5 +1112,5 @@ if __name__ == '__main__':
     t = Thread(target=run_web)
     t.daemon = True
     t.start()
-    print("🚀 ربات تلگرام و پنل وب با موفقیت آنلاین شدند...")
+    print("🚀 ربات تلگرام و پنل وب مدرن با موفقیت آنلاین شدند...")
     bot.infinity_polling(skip_pending=True)
