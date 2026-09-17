@@ -7,7 +7,7 @@ import datetime
 from threading import Thread
 from flask import Flask, request, render_template_string, redirect, session, jsonify
 
-# ----------------- تنظیمات پایه -----------------
+# ----------------- مسیرها و تنظیمات -----------------
 BOT_TOKEN = "8974112756:AAE0UG5utdloIPcRkFu-fxp_fISMQfK8p_A"
 ADMIN_CHAT_ID = 5490508090
 PORT = 8080
@@ -17,11 +17,12 @@ DATA_FILE = os.path.join(BASE_DIR, "subscribers.json")
 PLANS_FILE = os.path.join(BASE_DIR, "plans.json")
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
 ORDERS_FILE = os.path.join(BASE_DIR, "orders.json")
+USERS_LIST_FILE = os.path.join(BASE_DIR, "all_users.json")
 
 app = Flask(__name__)
-app.secret_key = "secure_secret_key_gptbot_admin_panel_v3"
+app.secret_key = "secure_secret_key_gptbot_admin_panel_v4_complete"
 
-# ----------------- دیتابیس جیسون -----------------
+# ----------------- توابع کار با دیتابیس جیسون -----------------
 def load_json(fn, default):
     if os.path.exists(fn):
         try:
@@ -39,11 +40,13 @@ DEFAULT_SETTINGS = {
     "admin_user": "admin",
     "admin_pass": "asd123ASD@#",
     "support_id": "@AdminSupport",
-    "welcome_text": "سلام {name} عزیز! خوش آمدید. 🌹\n\n⚡️ به ربات رسمی فروش اشتراک خوش آمدید.\nاز منوی زیر جهت مشاهده تعرفه‌ها یا خرید اشتراک استفاده کنید:",
-    "plans_header_text": "📋 تعرفه‌های اشتراک فعال:\n\nجهت خرید هر یک از پلن‌ها، روی دکمه «💎 خرید اشتراک» کلیک کنید.",
-    "support_text": "📞 جهت پشتیبانی، پیگیری سفارشات یا سوالات با آیدی زیر در ارتباط باشید:\n{support_id}",
+    "welcome_text": "سلام {name} عزیز! خوش آمدید. 🌹\n\n⚡️ به سیستم هوشمند و رسمی خرید اشتراک خوش آمدید.\nجهت مشاهده و خرید اشتراک از دکمه‌های زیر استفاده نمایید:",
+    "plans_header_text": "📋 لیست تعرفه‌ها و پلن‌های فعال اشتراک:\n\nبرای خرید آنلاین روی دکمه «💎 خرید اشتراک» کلیک فرمایید.",
+    "support_text": "📞 جهت هرگونه راهنمایی، پیگیری اشتراک یا سوالات، با آیدی زیر در ارتباط باشید:\n{support_id}",
+    "receipt_guide_text": "🙏 سفارش شما ثبت شد! لطفاً شماره پیگیری یا عکس فیش واریزی خود را در پاسخ به این پیام ارسال نمایید تا بلافاصله تایید شود.",
+    "card_payment_enabled": True,
     "card_number": "6037-9975-1234-5678",
-    "card_holder": "مدیریت سرویس",
+    "card_holder": "مدیریت اشتراک",
     "bank_name": "بانک ملی"
 }
 
@@ -67,21 +70,43 @@ def get_subs():
 def get_orders():
     return load_json(ORDERS_FILE, [])
 
+def track_user(user_id, name, username):
+    users = load_json(USERS_LIST_FILE, {})
+    uid = str(user_id)
+    users[uid] = {
+        "name": name,
+        "username": username,
+        "last_seen": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    }
+    save_json(USERS_LIST_FILE, users)
+
+def get_all_users():
+    return load_json(USERS_LIST_FILE, {})
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ----------------- منطق ربات تلگرام -----------------
 def main_keyboard():
+    settings = get_settings()
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(types.KeyboardButton("💎 خرید اشتراک"), types.KeyboardButton("📋 تعرفه‌ها و پلن‌ها"))
-    markup.add(types.KeyboardButton("👤 وضعیت اشتراک من"), types.KeyboardButton("📞 پشتیبانی"))
+    if settings.get("card_payment_enabled", True):
+        markup.add(types.KeyboardButton("💳 شماره کارت واریز"), types.KeyboardButton("👤 وضعیت اشتراک من"))
+    else:
+        markup.add(types.KeyboardButton("👤 وضعیت اشتراک من"))
+    markup.add(types.KeyboardButton("📞 پشتیبانی"))
     return markup
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    settings = get_settings()
+    user_id = message.chat.id
     name = message.from_user.first_name or "کاربر گرامی"
+    username = f"@{message.from_user.username}" if message.from_user.username else "ندارد"
+    track_user(user_id, name, username)
+
+    settings = get_settings()
     text = settings.get("welcome_text", DEFAULT_SETTINGS["welcome_text"]).replace("{name}", name)
-    bot.send_message(message.chat.id, text, reply_markup=main_keyboard())
+    bot.send_message(user_id, text, reply_markup=main_keyboard())
 
 @bot.message_handler(func=lambda msg: msg.text == "📋 تعرفه‌ها و پلن‌ها")
 def show_plans(message):
@@ -90,20 +115,34 @@ def show_plans(message):
     header_text = settings.get("plans_header_text", DEFAULT_SETTINGS["plans_header_text"])
     
     if not plans:
-        bot.send_message(message.chat.id, "⚠️ در حال حاضر هیچ پلنی فعال نیست. لطفاً بعداً مراجعه کنید.")
+        bot.send_message(message.chat.id, "⚠️ در حال حاضر هیچ پلنی فعال نیست. لطفاً بعداً بررسی کنید.")
         return
     
     text = f"{header_text}\n\n"
     for key, p in plans.items():
-        price_fmt = f"{int(p['price']):,}"
-        text += f"🔹 **{p['name']}**\n   💰 قیمت: {price_fmt} تومان\n   ⏳ مدت اعتبار: {p['days']} روز\n"
+        text += f"🔹 **{p['name']}**\n   💰 قیمت: {int(p['price']):,} تومان\n   ⏳ مدت اعتبار: {p['days']} روز\n"
         if p.get('desc'):
-            text += f"   📝 توضیحات: {p['desc']}\n"
+            text += f"   📝 ویژگی: {p['desc']}\n"
         text += "\n"
     
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("💎 خرید آنلاین هرکدام از پلن‌ها", callback_data="open_buy_menu"))
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
+
+@bot.message_handler(func=lambda msg: msg.text == "💳 شماره کارت واریز")
+def show_card(message):
+    settings = get_settings()
+    if not settings.get("card_payment_enabled", True):
+        return
+    text = (
+        "💳 **اطلاعات حساب بانکی جهت واریز کارت به کارت:**\n\n"
+        f"🏦 بانک: **{settings.get('bank_name', 'بانک ملی')}**\n"
+        f"👤 به نام: **{settings.get('card_holder', 'مدیریت')}**\n"
+        f"🔢 شماره کارت: `{settings.get('card_number', '6037-9975-1234-5678')}`\n\n"
+        "*(برای کپی شماره کارت روی آن لمس کنید)*\n"
+        "پس از واریز، از بخش «خرید اشتراک» فیش واریزی خود را ارسال فرمایید."
+    )
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.text == "📞 پشتیبانی")
 def support(message):
@@ -121,26 +160,26 @@ def my_sub(message):
         bot.send_message(
             message.chat.id,
             f"✅ **اشتراک شما فعال است!**\n\n"
-            f"🔹 نام پلن: {s.get('plan')}\n"
+            f"🔹 محصول: {s.get('plan')}\n"
             f"📅 تاریخ ثبت: {s.get('date')}\n"
-            f"⏳ روزهای اعتبار: {s.get('days', 30)} روز\n"
+            f"⏳ اعتبار: {s.get('days', 30)} روز\n"
             f"🔑 کد لایسنس شما:\n`{s.get('license_key')}`",
             parse_mode="Markdown"
         )
     else:
-        bot.send_message(message.chat.id, "❌ شما در حال حاضر اشتراک فعالی ندارید.\nبرای خرید اشتراک از دکمه «💎 خرید اشتراک» استفاده کنید.")
+        bot.send_message(message.chat.id, "❌ شما در حال حاضر اشتراک فعالی ندارید.\nجهت خرید روی دکمه «💎 خرید اشتراک» کلیک کنید.")
 
 @bot.message_handler(func=lambda msg: msg.text == "💎 خرید اشتراک")
 def buy_subscription(message):
     plans = get_plans()
     if not plans:
-        bot.send_message(message.chat.id, "⚠️ در حال حاضر هیچ پلنی فعال نیست. با پشتیبانی در تماس باشید.")
+        bot.send_message(message.chat.id, "⚠️ در حال حاضر هیچ پلنی فعال نیست. با پشتیبانی در ارتباط باشید.")
         return
     markup = types.InlineKeyboardMarkup(row_width=1)
     for key, p in plans.items():
         btn = types.InlineKeyboardButton(f"🛒 {p['name']} - {int(p['price']):,} تومان", callback_data=f"select_{key}")
         markup.add(btn)
-    bot.send_message(message.chat.id, "👇 لطفاً پلن مورد نظر خود را جهت خرید انتخاب فرمایید:", reply_markup=markup)
+    bot.send_message(message.chat.id, "👇 لطفاً محصول مورد نظر خود را جهت خرید انتخاب فرمایید:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "open_buy_menu")
 def cb_open_buy(call):
@@ -152,23 +191,23 @@ def process_product_selection(call):
     plans = get_plans()
     plan = plans.get(plan_key)
     if not plan:
-        bot.answer_callback_query(call.id, "پلن یافت نشد!", show_alert=True)
+        bot.answer_callback_query(call.id, "پلن پیدا نشد!", show_alert=True)
         return
     
     markup = types.InlineKeyboardMarkup(row_width=1)
-    btn_pay = types.InlineKeyboardButton(f"💳 رفتن به درگاه پرداخت ({int(plan['price']):,} تومان)", url=plan['pay_url'])
-    btn_verify = types.InlineKeyboardButton("✅ پرداخت کردم (ارسال رسید یا کد پیگیری)", callback_data=f"done_{plan_key}")
+    btn_pay = types.InlineKeyboardButton(f"💳 ورود به درگاه پرداخت آنلاین ({int(plan['price']):,} تومان)", url=plan['pay_url'])
+    btn_verify = types.InlineKeyboardButton("✅ پرداخت کردم (ثبت کد رهگیری / فیش)", callback_data=f"done_{plan_key}")
     markup.add(btn_pay, btn_verify)
     
     text = (
-        f"💎 **پیش‌فاکتور خرید اشتراک:**\n\n"
-        f"📦 پلن: **{plan['name']}**\n"
+        f"💎 **پیش‌فاکتور خرید محصول:**\n\n"
+        f"📦 نام پلن: **{plan['name']}**\n"
         f"💰 مبلغ قابل پرداخت: **{int(plan['price']):,} تومان**\n"
-        f"⏳ مدت زمان اعتبار: {plan['days']} روز\n"
+        f"⏳ مدت اعتبار: {plan['days']} روز\n"
     )
     if plan.get('desc'):
-        text += f"📝 توضیحات: {plan['desc']}\n"
-    text += "\n🔗 جهت پرداخت آنلاین روی دکمه درگاه پرداخت زیر کلیک کنید.\nپس از اتمام تراکنش، دکمه «پرداخت کردم» را بزنید."
+        text += f"📝 ویژگی‌ها: {plan['desc']}\n"
+    text += "\n🔗 روی دکمه درگاه پرداخت کلیک کنید. پس از پرداخت آنلاین، دکمه «پرداخت کردم» را لمس کنید:"
     bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("done_"))
@@ -178,7 +217,8 @@ def ask_payment_ref(call):
     plan = plans.get(plan_key, {"name": "محصول اشتراک", "price": 0, "days": 30})
     user_id = call.from_user.id
     name = call.from_user.first_name or "کاربر"
-    username = f"@{call.from_user.username}" if call.from_user.username else "بدون نام‌کاربری"
+    username = f"@{call.from_user.username}" if call.from_user.username else "ندارد"
+    settings = get_settings()
     
     orders = get_orders()
     order_item = {
@@ -198,7 +238,7 @@ def ask_payment_ref(call):
 
     bot.send_message(
         call.message.chat.id,
-        "🙏 سفارش شما ثبت شد! لطفاً **کد پیگیری، شماره تراکنش یا عکس فیش واریزی** خود را در پاسخ به این پیام ارسال نمایید."
+        settings.get("receipt_guide_text", DEFAULT_SETTINGS["receipt_guide_text"])
     )
     
     admin_markup = types.InlineKeyboardMarkup(row_width=2)
@@ -208,7 +248,7 @@ def ask_payment_ref(call):
     
     bot.send_message(
         ADMIN_CHAT_ID,
-        f"🔔 **سفارش جدید پرداخت!**\n\n"
+        f"🔔 **ثبت سفارش پرداخت جدید!**\n\n"
         f"👤 مشتری: {name} ({username})\n"
         f"🆔 آیدی عددی: `{user_id}`\n"
         f"📦 پلن: {plan['name']}\n"
@@ -221,7 +261,7 @@ def ask_payment_ref(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("adm_ok_") or call.data.startswith("adm_no_"))
 def admin_approval(call):
     if call.from_user.id != ADMIN_CHAT_ID:
-        bot.answer_callback_query(call.id, "شما دسترسی مدیریت ندارید!")
+        bot.answer_callback_query(call.id, "شما دسترسی ادمین ندارید!")
         return
     parts = call.data.split("_")
     action = parts[1]
@@ -253,14 +293,14 @@ def admin_approval(call):
                 int(target_id),
                 f"🎉 **پرداخت شما تایید و اشتراک فعال گردید!**\n\n"
                 f"🔹 پلن: {plan['name']}\n"
-                f"⏳ مدت: {plan.get('days', 30)} روز\n"
-                f"🔑 کد لایسنس اختصاصی شما:\n`{lic}`\n\n"
-                "با تشکر از اعتماد شما 🌹",
+                f"⏳ مدت اعتبار: {plan.get('days', 30)} روز\n"
+                f"🔑 کد لایسنس شما:\n`{lic}`\n\n"
+                "با تشکر از خرید شما 🌹",
                 parse_mode="Markdown"
             )
         except:
             pass
-        bot.edit_message_text(f"✅ اشتراک کاربر `{target_id}` با موفقیت تایید و فعال شد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.edit_message_text(f"✅ اشتراک کاربر `{target_id}` با موفقیت فعال شد.", chat_id=call.message.chat.id, message_id=call.message.message_id)
     else:
         orders = get_orders()
         for ord in orders:
@@ -271,7 +311,7 @@ def admin_approval(call):
         try:
             bot.send_message(
                 int(target_id),
-                "⚠️ متاسفانه سفارش شما توسط مدیریت تایید نشد. در صورت کسر وجه با پشتیبانی در ارتباط باشید."
+                "⚠️ متاسفانه سفارش شما توسط مدیریت تایید نشد. در صورت بروز اشتباه با پشتیبانی در ارتباط باشید."
             )
         except:
             pass
@@ -281,16 +321,16 @@ def admin_approval(call):
 def forward_receipt(message):
     if message.chat.id == ADMIN_CHAT_ID:
         return
-    bot.reply_to(message, "✅ پیام یا فیش شما دریافت شد و جهت بررسی برای مدیریت ارسال گردید.")
+    bot.reply_to(message, "✅ پیام یا فیش شما دریافت شد و جهت بررسی به مدیریت ارسال گردید.")
     bot.forward_message(ADMIN_CHAT_ID, message.chat.id, message.message_id)
 
-# ----------------- قالب HTML پنل با فونت زیبا و دیزاین مدرن -----------------
+# ----------------- قالب فوق‌پیشرفته و زیبای پنل ادمین -----------------
 HTML_LOGIN = """
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>ورود به پنل مدیریت</title>
+    <title>ورود به پنل مدیریت ربات</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -308,7 +348,7 @@ HTML_LOGIN = """
             padding: 20px;
         }
         .login-card {
-            background: rgba(18, 26, 44, 0.85);
+            background: rgba(18, 26, 44, 0.9);
             backdrop-filter: blur(16px);
             border: 1px solid rgba(56, 189, 248, 0.2);
             border-radius: 20px;
@@ -318,8 +358,8 @@ HTML_LOGIN = """
             box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
         }
         .logo-badge {
-            width: 54px;
-            height: 54px;
+            width: 56px;
+            height: 56px;
             background: linear-gradient(135deg, #0284c7, #0ea5e9);
             border-radius: 16px;
             display: flex;
@@ -381,20 +421,20 @@ HTML_LOGIN = """
 </head>
 <body>
     <div class="login-card">
-        <div class="logo-badge">⚡</div>
+        <div class="logo-badge">💎</div>
         <h2>ورود به پنل مدیریت</h2>
-        <p class="subtitle">سیستم مدیریت اشتراک و ربات تلگرام</p>
+        <p class="subtitle">داشبورد اختصاصی مدیریت ربات تلگرام</p>
         {% if error %}<div class="err">{{ error }}</div>{% endif %}
         <form method="POST">
             <div class="form-group">
                 <label>نام کاربری:</label>
-                <input type="text" name="username" required autocomplete="off" placeholder="نام کاربری ادمین">
+                <input type="text" name="username" required autocomplete="off" placeholder="admin">
             </div>
             <div class="form-group">
                 <label>رمز عبور:</label>
                 <input type="password" name="password" required placeholder="••••••••">
             </div>
-            <button type="submit">ورود به پنل داشبورد</button>
+            <button type="submit">ورود به پنل</button>
         </form>
     </div>
 </body>
@@ -406,7 +446,7 @@ HTML_ADMIN = """
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>داشبورد مدیریت اشتراک‌ها</title>
+    <title>پنل مدیریت جامع ربات فروش اشتراک</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -420,9 +460,8 @@ HTML_ADMIN = """
             padding: 24px;
             min-height: 100vh;
         }
-        .container { max-width: 1280px; margin: 0 auto; }
+        .container { max-width: 1320px; margin: 0 auto; }
         
-        /* Navbar */
         .topbar {
             display: flex;
             justify-content: space-between;
@@ -434,29 +473,21 @@ HTML_ADMIN = """
             margin-bottom: 24px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+        .brand { display: flex; align-items: center; gap: 14px; }
         .brand-icon {
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             background: linear-gradient(135deg, #0284c7, #38bdf8);
-            border-radius: 10px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 22px;
         }
         .brand-title { margin: 0; font-size: 18px; font-weight: 700; color: #f8fafc; }
         .brand-sub { margin: 0; font-size: 12px; color: #94a3b8; }
         
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
+        .user-info { display: flex; align-items: center; gap: 14px; }
         .user-badge {
             background: #1e293b;
             padding: 6px 14px;
@@ -466,10 +497,9 @@ HTML_ADMIN = """
             border: 1px solid #334155;
         }
         
-        /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
@@ -483,23 +513,16 @@ HTML_ADMIN = """
             transition: transform 0.2s;
         }
         .stat-card:hover { transform: translateY(-2px); border-color: #38bdf8; }
-        .stat-icon {
-            position: absolute;
-            left: 18px;
-            top: 20px;
-            font-size: 28px;
-            opacity: 0.7;
-        }
+        .stat-icon { position: absolute; left: 18px; top: 20px; font-size: 28px; opacity: 0.7; }
         .stat-title { font-size: 13px; color: #94a3b8; font-weight: 500; }
         .stat-number { font-size: 26px; font-weight: 800; color: #f8fafc; margin-top: 6px; }
-        .stat-desc { font-size: 11px; color: #38bdf8; margin-top: 4px; }
+        .stat-desc { font-size: 11.5px; color: #38bdf8; margin-top: 4px; }
         
-        /* Navigation Tabs */
         .nav-tabs {
             display: flex;
             gap: 8px;
             background: #0f172a;
-            padding: 6px;
+            padding: 8px;
             border-radius: 14px;
             border: 1px solid #1e293b;
             margin-bottom: 24px;
@@ -509,7 +532,7 @@ HTML_ADMIN = """
             background: transparent;
             border: none;
             color: #94a3b8;
-            padding: 10px 20px;
+            padding: 10px 18px;
             border-radius: 10px;
             font-size: 13.5px;
             font-weight: 600;
@@ -530,7 +553,6 @@ HTML_ADMIN = """
         .tab-view { display: none; }
         .tab-view.active { display: block; }
         
-        /* Card & Content */
         .card {
             background: #0f172a;
             border: 1px solid #1e293b;
@@ -549,7 +571,6 @@ HTML_ADMIN = """
         }
         .card-title { margin: 0; font-size: 16px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
         
-        /* Forms */
         .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px; }
         .form-group { margin-bottom: 16px; }
         label { display: block; font-size: 13px; font-weight: 500; color: #cbd5e1; margin-bottom: 6px; }
@@ -563,7 +584,7 @@ HTML_ADMIN = """
             font-size: 13.5px;
             transition: all 0.2s;
         }
-        textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+        textarea { resize: vertical; min-height: 85px; line-height: 1.6; }
         input:focus, select:focus, textarea:focus {
             border-color: #0284c7;
             background: #0b1120;
@@ -571,7 +592,6 @@ HTML_ADMIN = """
             box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
         }
         
-        /* Buttons */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -594,7 +614,6 @@ HTML_ADMIN = """
         .btn-secondary { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
         .btn-secondary:hover { background: #334155; color: white; }
         
-        /* Tables */
         .table-responsive { overflow-x: auto; }
         table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
         th {
@@ -616,7 +635,6 @@ HTML_ADMIN = """
         }
         tr:hover td { background: rgba(255,255,255,0.02); }
         
-        /* Badges */
         .badge {
             padding: 5px 10px;
             border-radius: 8px;
@@ -648,23 +666,23 @@ HTML_ADMIN = """
             border: 1px solid #1e293b;
             font-family: monospace;
             color: #38bdf8;
-            font-size: 12.5px;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- هدر بالای صفحه -->
+        <!-- هدر -->
         <div class="topbar">
             <div class="brand">
-                <div class="brand-icon">💎</div>
+                <div class="brand-icon">⚡</div>
                 <div>
-                    <h1 class="brand-title">پنل مدیریت اشتراک و ربات تلگرام</h1>
-                    <p class="brand-sub">مدیریت آنی پلن‌ها، متن تعرفه‌ها، اشتراک‌ها و تراکنش‌ها</p>
+                    <h1 class="brand-title">داشبورد کنترل جامع ربات اشتراک</h1>
+                    <p class="brand-sub">مدیریت پلن‌ها، تنظیم متن‌ها، ارسال همگانی و مانیتورینگ سفارشات</p>
                 </div>
             </div>
             <div class="user-info">
-                <div class="user-badge">👤 مدیر سیستم: <b>{{ settings.admin_user }}</b></div>
+                <div class="user-badge">مدیر وارد شده: <b>{{ settings.admin_user }}</b></div>
                 <a href="/logout" class="btn btn-secondary">خروج</a>
             </div>
         </div>
@@ -673,29 +691,29 @@ HTML_ADMIN = """
         <div class="alert-box">✨ {{ msg }}</div>
         {% endif %}
 
-        <!-- کارت‌های آمار و اطلاعات -->
+        <!-- کارت‌های آمار -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-icon">👥</div>
                 <div class="stat-title">مشترکین فعال</div>
                 <div class="stat-number">{{ stats.active_subs }}</div>
-                <div class="stat-desc">دارای لایسنس معتبر</div>
+                <div class="stat-desc">دارای لایسنس فعال</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🤖</div>
+                <div class="stat-title">کل کاربران استارت‌زده</div>
+                <div class="stat-number">{{ stats.total_bot_users }}</div>
+                <div class="stat-desc">مخاطبان ثبت‌شده</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">📦</div>
-                <div class="stat-title">پلن‌های فعال در ربات</div>
+                <div class="stat-title">پلن‌های تعریف‌شده</div>
                 <div class="stat-number">{{ stats.total_plans }}</div>
-                <div class="stat-desc">آماده سفارش کاربران</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🛍️</div>
-                <div class="stat-title">کل سفارشات ثبت‌شده</div>
-                <div class="stat-number">{{ stats.total_orders }}</div>
-                <div class="stat-desc">تراکنش‌های ورودی</div>
+                <div class="stat-desc">پلن‌های فعال خرید</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">💰</div>
-                <div class="stat-title">مجموع فروش تایید شده</div>
+                <div class="stat-title">کل فروش موفق</div>
                 <div class="stat-number">{{ "{:,}".format(stats.total_revenue) }}</div>
                 <div class="stat-desc">تومان</div>
             </div>
@@ -703,14 +721,16 @@ HTML_ADMIN = """
 
         <!-- تب‌های پیمایش -->
         <div class="nav-tabs">
-            <button class="tab-btn active" onclick="showTab('plans')">📦 مدیریت پلن‌ها</button>
-            <button class="tab-btn" onclick="showTab('texts')">✏️ ویرایش متن تعرفه‌ها و پیام‌های ربات</button>
-            <button class="tab-btn" onclick="showTab('orders')">🛍️ لیست سفارشات</button>
-            <button class="tab-btn" onclick="showTab('subs')">👥 مدیریت مشترکین و لایسنس</button>
-            <button class="tab-btn" onclick="showTab('settings')">⚙️ تغییر نام کاربری و رمز</button>
+            <button class="tab-btn active" onclick="showTab('plans')">💎 پلن‌ها و تعرفه‌ها</button>
+            <button class="tab-btn" onclick="showTab('texts')">✏️ ویرایش متن‌های ربات</button>
+            <button class="tab-btn" onclick="showTab('card')">💳 اطلاعات کارت به کارت</button>
+            <button class="tab-btn" onclick="showTab('broadcast')">📢 ارسال پیام همگانی</button>
+            <button class="tab-btn" onclick="showTab('orders')">🛍️ سفارشات و تراکنش‌ها</button>
+            <button class="tab-btn" onclick="showTab('subs')">👤 مشترکین و لایسنس‌ها</button>
+            <button class="tab-btn" onclick="showTab('settings')">⚙️ تنظیمات امنیتی پنل</button>
         </div>
 
-        <!-- تب ۱: پلن‌ها -->
+        <!-- تب ۱: مدیریت پلن‌ها -->
         <div id="tab-plans" class="tab-view active">
             <div class="card">
                 <div class="card-header">
@@ -719,12 +739,12 @@ HTML_ADMIN = """
                 <form method="POST" action="/admin/add_plan">
                     <div class="grid-form">
                         <div class="form-group">
-                            <label>نام پلن / محصول:</label>
-                            <input type="text" name="name" placeholder="مثال: پلن طلایی VIP (۳ ماهه)" required>
+                            <label>نام پلن یا اشتراک:</label>
+                            <input type="text" name="name" placeholder="مثال: اشتراک طلایی VIP (۳ ماهه)" required>
                         </div>
                         <div class="form-group">
-                            <label>قیمت محصول (تومان):</label>
-                            <input type="number" name="price" placeholder="مثال: 150000" required>
+                            <label>قیمت به تومان:</label>
+                            <input type="number" name="price" placeholder="مثال: 220000" required>
                         </div>
                         <div class="form-group">
                             <label>مدت زمان اعتبار (روز):</label>
@@ -733,12 +753,12 @@ HTML_ADMIN = """
                     </div>
                     <div class="grid-form">
                         <div class="form-group" style="grid-column: span 2;">
-                            <label>لینک درگاه پرداخت پی‌پینگ اختصاصی این پلن:</label>
+                            <label>لینک درگاه پی‌پینگ اختصاصی این پلن:</label>
                             <input type="text" name="pay_url" placeholder="https://payping.ir/d/XXXXXX" required>
                         </div>
                         <div class="form-group">
-                            <label>توضیحات کوتاه (اختیاری):</label>
-                            <input type="text" name="desc" placeholder="مثال: بدون محدودیت، تحویل آنی">
+                            <label>توضیحات کوتاه پلن (اختیاری):</label>
+                            <input type="text" name="desc" placeholder="سرعت بالا، پشتیبانی ۲۴ ساعته">
                         </div>
                     </div>
                     <button type="submit" class="btn btn-success">➕ ذخیره و نمایش در ربات تلگرام</button>
@@ -747,17 +767,17 @@ HTML_ADMIN = """
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">📋 پلن‌های فعال موجود در ربات</h2>
+                    <h2 class="card-title">📋 پلن‌های فعال در حال حاضر</h2>
                 </div>
                 <div class="table-responsive">
                     <table>
                         <thead>
                             <tr>
                                 <th>نام پلن</th>
-                                <th>قیمت</th>
-                                <th>مدت اعتبار</th>
+                                <th>قیمت (تومان)</th>
+                                <th>مدت</th>
                                 <th>توضیحات</th>
-                                <th>لینک درگاه پی‌پینگ</th>
+                                <th>لینک درگاه پرداخت</th>
                                 <th>عملیات</th>
                             </tr>
                         </thead>
@@ -768,15 +788,13 @@ HTML_ADMIN = """
                                 <td>{{ "{:,}".format(p.price|int) }} تومان</td>
                                 <td>{{ p.days }} روز</td>
                                 <td>{{ p.desc or '-' }}</td>
-                                <td><a href="{{ p.pay_url }}" target="_blank" style="color:#0ea5e9; font-weight: 500; text-decoration: none;">مشاهده صفحه پرداخت ↗</a></td>
+                                <td><a href="{{ p.pay_url }}" target="_blank" style="color:#0ea5e9; text-decoration: none;">مشاهده صفحه پی‌پینگ ↗</a></td>
                                 <td>
-                                    <a href="/admin/delete_plan/{{ key }}" class="btn btn-danger" style="padding: 6px 14px; font-size: 12px;" onclick="return confirm('آیا مطمئن هستید که این پلن حذف شود؟')">حذف پلن</a>
+                                    <a href="/admin/delete_plan/{{ key }}" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('آیا از حذف این پلن مطمئن هستید؟')">حذف</a>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr>
-                                <td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ پلنی هنوز ثبت نشده است. از فرم بالا اولین پلن خود را بسازید.</td>
-                            </tr>
+                            <tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">هنوز هیچ پلنی تعریف نشده است. از فرم بالا پلن‌های خود را تعریف کنید.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -784,29 +802,34 @@ HTML_ADMIN = """
             </div>
         </div>
 
-        <!-- تب ۲: شخصی‌سازی متن‌ها -->
+        <!-- تب ۲: ویرایش متن‌ها -->
         <div id="tab-texts" class="tab-view">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">✏️ ویرایش آنلاین متن‌های ارسالی توسط ربات تلگرام</h2>
+                    <h2 class="card-title">✏️ ویرایش متن‌های نمایشی ربات</h2>
                 </div>
                 <form method="POST" action="/admin/update_texts">
                     <div class="form-group">
-                        <label>📋 متن تیتر بالای لیست تعرفه‌ها (دکمه «تعرفه‌ها و پلن‌ها»):</label>
+                        <label>📋 متن تیتر بالای لیست تعرفه‌ها (در دکمه «تعرفه‌ها و پلن‌ها»):</label>
                         <textarea name="plans_header_text">{{ settings.plans_header_text }}</textarea>
-                        <small style="color: #94a3b8; font-size: 12px; display: block; margin-top: 4px;">این متن در تلگرام دقیقاً بالای قیمت پلن‌ها برای مشتری نمایش داده می‌شود.</small>
+                        <small style="color: #94a3b8; font-size: 12px;">این متن دقیقاً در پیام لیست قیمت‌ها بالای تعرفه‌ها نمایش می‌یابد.</small>
                     </div>
 
                     <div class="form-group">
-                        <label>🌹 متن پیام خوش‌آمدگویی استارت ربات (/start):</label>
-                        <textarea name="welcome_text" style="min-height: 110px;">{{ settings.welcome_text }}</textarea>
-                        <small style="color: #94a3b8; font-size: 12px; display: block; margin-top: 4px;">از {name} برای قرارگیری نام کاربر استفاده می‌شود.</small>
+                        <label>🌹 پیام خوش‌آمدگویی استارت ربات (/start):</label>
+                        <textarea name="welcome_text" style="min-height: 100px;">{{ settings.welcome_text }}</textarea>
+                        <small style="color: #94a3b8; font-size: 12px;">از {name} برای جایگذاری نام کاربر استفاده نمایید.</small>
                     </div>
 
                     <div class="form-group">
-                        <label>📞 متن دکمه پشتیبانی:</label>
+                        <label>📞 پیام بخش پشتیبانی:</label>
                         <textarea name="support_text">{{ settings.support_text }}</textarea>
-                        <small style="color: #94a3b8; font-size: 12px; display: block; margin-top: 4px;">از {support_id} برای جایگذاری آیدی پشتیبانی استفاده می‌شود.</small>
+                        <small style="color: #94a3b8; font-size: 12px;">از {support_id} برای جایگذاری خودکار آیدی استفاده می‌شود.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>📸 پیام درخواست فیش یا کد رهگیری به کاربر:</label>
+                        <textarea name="receipt_guide_text">{{ settings.receipt_guide_text }}</textarea>
                     </div>
 
                     <div class="form-group" style="max-width: 320px;">
@@ -819,23 +842,72 @@ HTML_ADMIN = """
             </div>
         </div>
 
-        <!-- تب ۳: سفارشات -->
+        <!-- تب ۳: کارت به کارت -->
+        <div id="tab-card" class="tab-view">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">💳 تنظیمات حساب بانکی (کارت به کارت)</h2>
+                </div>
+                <form method="POST" action="/admin/update_card_settings">
+                    <div class="form-group">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" name="card_payment_enabled" value="true" {% if settings.card_payment_enabled %}checked{% endif %} style="width: auto;">
+                            <span>دکمه و بخش واریز کارت‌به‌کارت در ربات فعال باشد</span>
+                        </label>
+                    </div>
+                    <div class="grid-form">
+                        <div class="form-group">
+                            <label>شماره کارت بانکی:</label>
+                            <input type="text" name="card_number" value="{{ settings.card_number }}">
+                        </div>
+                        <div class="form-group">
+                            <label>نام صاحب حساب:</label>
+                            <input type="text" name="card_holder" value="{{ settings.card_holder }}">
+                        </div>
+                        <div class="form-group">
+                            <label>نام بانک:</label>
+                            <input type="text" name="bank_name" value="{{ settings.bank_name }}">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">💾 ذخیره تنظیمات حساب بانکی</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- تب ۴: پیام همگانی -->
+        <div id="tab-broadcast" class="tab-view">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📢 ارسال پیام و اطلاعیه همگانی به تمام کاربران ربات</h2>
+                </div>
+                <form method="POST" action="/admin/broadcast">
+                    <div class="form-group">
+                        <label>متن پیام همگانی:</label>
+                        <textarea name="broadcast_text" style="min-height: 140px;" placeholder="متن اطلاعیه، تخفیف، اخبار یا به‌روزرسانی سرویس را اینجا بنویسید..." required></textarea>
+                    </div>
+                    <p style="font-size: 13px; color: #94a3b8;">این پیام برای تمامی <b>{{ stats.total_bot_users }}</b> کاربری که تا کنون ربات را استارت زده‌اند ارسال خواهد شد.</p>
+                    <button type="submit" class="btn btn-success" onclick="return confirm('آیا از ارسال همگانی این پیام مطمئن هستید؟')">🚀 ارسال فوری به همه کاربران</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- تب ۵: سفارشات -->
         <div id="tab-orders" class="tab-view">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🛍️ سوابق خرید و پرداخت‌های کاربران</h2>
+                    <h2 class="card-title">🛍️ تاریخچه تراکنش‌ها و سفارشات مشتریان</h2>
                 </div>
                 <div class="table-responsive">
                     <table>
                         <thead>
                             <tr>
-                                <th>کد پیگیری</th>
+                                <th>کد سفارش</th>
                                 <th>نام مشتری</th>
                                 <th>آیدی عددی</th>
-                                <th>پلن درخواستی</th>
+                                <th>پلن</th>
                                 <th>مبلغ</th>
-                                <th>تاریخ سفارش</th>
-                                <th>وضعیت سفارش</th>
+                                <th>تاریخ</th>
+                                <th>وضعیت</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -849,7 +921,7 @@ HTML_ADMIN = """
                                 <td>{{ ord.date }}</td>
                                 <td>
                                     {% if ord.status == 'approved' %}
-                                    <span class="badge badge-success">✅ تایید و فعال</span>
+                                    <span class="badge badge-success">✅ تایید و فعال شد</span>
                                     {% elif ord.status == 'rejected' %}
                                     <span class="badge badge-danger">❌ رد شده</span>
                                     {% else %}
@@ -858,9 +930,7 @@ HTML_ADMIN = """
                                 </td>
                             </tr>
                             {% else %}
-                            <tr>
-                                <td colspan="7" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ سفارشی هنوز ثبت نشده است.</td>
-                            </tr>
+                            <tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ سفارشی هنوز ثبت نشده است.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -868,16 +938,16 @@ HTML_ADMIN = """
             </div>
         </div>
 
-        <!-- تب ۴: اشتراک‌ها -->
+        <!-- تب ۶: مشترکین -->
         <div id="tab-subs" class="tab-view">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">➕ فعال‌سازی دستی اشتراک بدون پرداخت</h2>
+                    <h2 class="card-title">➕ فعال‌سازی دستی اشتراک (بدون درگاه)</h2>
                 </div>
                 <form method="POST" action="/admin/manual_sub">
                     <div class="grid-form">
                         <div class="form-group">
-                            <label>آیدی عددی تلگرام مشتری:</label>
+                            <label>آیدی عددی تلگرام کاربر:</label>
                             <input type="number" name="user_id" placeholder="مثال: 5490508090" required>
                         </div>
                         <div class="form-group">
@@ -893,22 +963,22 @@ HTML_ADMIN = """
                             <input type="number" name="days" value="30" required>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success">✅ فعال‌سازی اشتراک و ارسال پیام لایسنس به کاربر</button>
+                    <button type="submit" class="btn btn-success">✅ فعال‌سازی اشتراک و ارسال لایسنس به کاربر</button>
                 </form>
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">👥 لیست مشترکین فعال</h2>
+                    <h2 class="card-title">👥 لیست مشترکین دارای لایسنس فعال</h2>
                 </div>
                 <div class="table-responsive">
                     <table>
                         <thead>
                             <tr>
                                 <th>آیدی تلگرام</th>
-                                <th>پلن فعال</th>
+                                <th>پلن</th>
                                 <th>تاریخ شروع</th>
-                                <th>مدت اعتبار</th>
+                                <th>مدت</th>
                                 <th>کد لایسنس</th>
                                 <th>عملیات</th>
                             </tr>
@@ -922,13 +992,11 @@ HTML_ADMIN = """
                                 <td>{{ s.days or 30 }} روز</td>
                                 <td><span class="code-box">{{ s.license_key }}</span></td>
                                 <td>
-                                    <a href="/admin/revoke_sub/{{ uid }}" class="btn btn-danger" style="padding: 6px 14px; font-size: 12px;" onclick="return confirm('آیا اشتراک این کاربر باطل شود؟')">ابطال اشتراک</a>
+                                    <a href="/admin/revoke_sub/{{ uid }}" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('آیا اشتراک این کاربر باطل شود؟')">ابطال لایسنس</a>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr>
-                                <td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ کاربری در حال حاضر اشتراک فعال ندارد.</td>
-                            </tr>
+                            <tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">هیچ کاربری در حال حاضر اشتراک فعال ندارد.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -936,22 +1004,22 @@ HTML_ADMIN = """
             </div>
         </div>
 
-        <!-- تب ۵: تنظیمات -->
+        <!-- تب ۷: تنظیمات امنیت -->
         <div id="tab-settings" class="tab-view">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🔐 تغییر اطلاعات ورود به پنل ادمین</h2>
+                    <h2 class="card-title">🔐 تغییر نام کاربری و رمز عبور ورود به پنل</h2>
                 </div>
                 <form method="POST" action="/admin/update_credentials" style="max-width: 480px;">
                     <div class="form-group">
-                        <label>نام کاربری جدید پنل:</label>
+                        <label>نام کاربری جدید:</label>
                         <input type="text" name="new_username" value="{{ settings.admin_user }}" required>
                     </div>
                     <div class="form-group">
                         <label>رمز عبور جدید:</label>
-                        <input type="password" name="new_password" placeholder="رمز عبور قوی وارد نمایید" required>
+                        <input type="password" name="new_password" placeholder="رمز جدید قوی وارد نمایید" required>
                     </div>
-                    <button type="submit" class="btn btn-primary">تغییر نام کاربری و رمز</button>
+                    <button type="submit" class="btn btn-primary">تغییر اطلاعات ورود</button>
                 </form>
             </div>
         </div>
@@ -970,7 +1038,7 @@ HTML_ADMIN = """
 </html>
 """
 
-# ----------------- روت‌های تحت وب -----------------
+# ----------------- روت‌های وب ادمین -----------------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -997,12 +1065,14 @@ def admin_page():
     plans = get_plans()
     subs = get_subs()
     orders = get_orders()
+    users = get_all_users()
     settings = get_settings()
     msg = request.args.get('msg')
     
     total_revenue = sum(ord.get('price', 0) for ord in orders if ord.get('status') == 'approved')
     stats = {
         "active_subs": len(subs),
+        "total_bot_users": len(users),
         "total_plans": len(plans),
         "total_orders": len(orders),
         "total_revenue": total_revenue
@@ -1024,7 +1094,7 @@ def add_plan():
         "desc": request.form.get('desc', '')
     }
     save_json(PLANS_FILE, plans)
-    return redirect('/admin?msg=پلن جدید با موفقیت اضافه و در ربات منتشر گردید.')
+    return redirect('/admin?msg=پلن جدید با موفقیت ایجاد و به ربات اضافه گردید.')
 
 @app.route('/admin/delete_plan/<plan_id>')
 def delete_plan(plan_id):
@@ -1045,8 +1115,41 @@ def update_texts():
     settings['welcome_text'] = request.form.get('welcome_text')
     settings['support_text'] = request.form.get('support_text')
     settings['support_id'] = request.form.get('support_id')
+    settings['receipt_guide_text'] = request.form.get('receipt_guide_text')
     save_json(SETTINGS_FILE, settings)
-    return redirect('/admin?msg=متن‌های تعرفه‌ها و پیام‌های ربات با موفقیت ذخیره شدند.')
+    return redirect('/admin?msg=متن‌های ربات با موفقیت به‌روزرسانی شدند.')
+
+@app.route('/admin/update_card_settings', methods=['POST'])
+def update_card_settings():
+    if not session.get('logged_in'):
+        return redirect('/login')
+    settings = get_settings()
+    settings['card_payment_enabled'] = bool(request.form.get('card_payment_enabled'))
+    settings['card_number'] = request.form.get('card_number')
+    settings['card_holder'] = request.form.get('card_holder')
+    settings['bank_name'] = request.form.get('bank_name')
+    save_json(SETTINGS_FILE, settings)
+    return redirect('/admin?msg=اطلاعات کارت بانکی با موفقیت ذخیره شدند.')
+
+@app.route('/admin/broadcast', methods=['POST'])
+def broadcast():
+    if not session.get('logged_in'):
+        return redirect('/login')
+    b_text = request.form.get('broadcast_text')
+    users = get_all_users()
+    
+    def send_broadcast_thread(target_users, text):
+        for uid in target_users:
+            try:
+                bot.send_message(int(uid), text)
+                time.sleep(0.05)
+            except:
+                pass
+                
+    t = Thread(target=send_broadcast_thread, args=(list(users.keys()), b_text))
+    t.start()
+    
+    return redirect(f'/admin?msg=ارسال پیام همگانی به {len(users)} کاربر آغاز گردید.')
 
 @app.route('/admin/manual_sub', methods=['POST'])
 def manual_sub():
@@ -1070,10 +1173,10 @@ def manual_sub():
     try:
         bot.send_message(
             int(uid),
-            f"🎉 **اشتراک شما توسط مدیریت به صورت دستی فعال گردید!**\n\n"
+            f"🎉 **اشتراک شما توسط مدیریت فعال گردید!**\n\n"
             f"🔹 پلن: {plan_name}\n"
             f"⏳ مدت اعتبار: {days} روز\n"
-            f"🔑 کد لایسنس شما:\n`{lic}`",
+            f"🔑 لایسنس شما:\n`{lic}`",
             parse_mode="Markdown"
         )
     except:
@@ -1089,7 +1192,7 @@ def revoke_sub(uid):
     if str(uid) in subs:
         del subs[str(uid)]
         save_json(DATA_FILE, subs)
-    return redirect('/admin?msg=اشتراک کاربر باطل شد.')
+    return redirect('/admin?msg=اشتراک کاربر با موفقیت باطل شد.')
 
 @app.route('/admin/update_credentials', methods=['POST'])
 def update_credentials():
@@ -1099,7 +1202,7 @@ def update_credentials():
     settings['admin_user'] = request.form.get('new_username')
     settings['admin_pass'] = request.form.get('new_password')
     save_json(SETTINGS_FILE, settings)
-    return redirect('/admin?msg=اطلاعات ورود به پنل با موفقیت تغییر یافت.')
+    return redirect('/admin?msg=اطلاعات ورود به پنل مدیریت با موفقیت به‌روزرسانی شد.')
 
 def run_web():
     app.run(host='0.0.0.0', port=PORT)
@@ -1112,5 +1215,5 @@ if __name__ == '__main__':
     t = Thread(target=run_web)
     t.daemon = True
     t.start()
-    print("🚀 ربات تلگرام و پنل وب مدرن با موفقیت آنلاین شدند...")
+    print("🚀 ربات تلگرام و پنل جامع وب با موفقیت آنلاین شدند...")
     bot.infinity_polling(skip_pending=True)

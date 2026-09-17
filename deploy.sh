@@ -8,8 +8,11 @@ echo "===> ۲. نصب پکیج‌های سیستمی مورد نیاز اوبو�
 apt-get update -y
 apt-get install -y python3 python3-pip python3-venv git
 
-echo "===> ۳. راه‌اندازی محیط مجازی ایزوله پایتون (venv)..."
+echo "===> ۳. راه‌اندازی محیط مجازی ایزوله پایتون (venv) و متغیرهای محیطی..."
 cd /root/gptBOT
+if [ ! -f .env ]; then
+    cp .env.example .env
+fi
 rm -rf venv
 python3 -m venv venv
 /root/gptBOT/venv/bin/pip install --upgrade pip
@@ -18,13 +21,13 @@ python3 -m venv venv
 echo "===> ۴. ساخت سرویس systemd جهت اجرای دائم در پس‌زمینه..."
 cat << 'EOF' > /etc/systemd/system/gptbot.service
 [Unit]
-Description=Telegram gptBOT and Admin Panel Service
+Description=Service-Based Telegram Bot & MTProto User Client Service
 After=network.target
 
 [Service]
 User=root
 WorkingDirectory=/root/gptBOT
-ExecStart=/root/gptBOT/venv/bin/python /root/gptBOT/bot.py
+ExecStart=/root/gptBOT/venv/bin/python /root/gptBOT/main.py
 Restart=always
 RestartSec=3
 
